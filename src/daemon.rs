@@ -4,8 +4,9 @@ use crate::config::{
 };
 use crate::device::{is_vertical_wheel, open_evdev_device};
 use crate::osd::{Notifier, OsdConfig};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use evdev::{EventSummary, KeyCode};
+use std::sync::mpsc;
 use std::thread;
 use tracing::{error, info, warn};
 
@@ -24,24 +25,26 @@ pub fn run(config: Config) -> Result<()> {
 
     ensure_backends_available(&enabled_devices)?;
 
-    let mut handles = Vec::new();
+    let (failure_tx, failure_rx) = mpsc::channel();
     for device_config in enabled_devices {
         let name = device_config.name.clone();
         let osd_config = osd_config.clone();
-        handles.push(thread::spawn(move || {
+        let failure_tx = failure_tx.clone();
+        thread::spawn(move || {
             if let Err(error) = run_device(device_config, osd_config) {
-                error!(device = %name, error = ?error, "device worker stopped");
+                let message = format!("{error:?}");
+                error!(device = %name, error = %message, "device worker stopped");
+                let _ = failure_tx.send((name, message));
             }
-        }));
+        });
+    }
+    drop(failure_tx);
+
+    if let Ok((name, error)) = failure_rx.recv() {
+        bail!("device worker stopped for {name}: {error}");
     }
 
-    for handle in handles {
-        if handle.join().is_err() {
-            error!("device worker panicked");
-        }
-    }
-
-    Ok(())
+    bail!("all device workers stopped unexpectedly")
 }
 
 fn ensure_backends_available(devices: &[DeviceConfig]) -> Result<()> {
