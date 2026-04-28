@@ -154,7 +154,7 @@ pub fn print_probe(info: &DeviceInfo) {
     println!("keys/buttons: {}", display_list(&info.keys));
 }
 
-pub fn print_events(path: impl AsRef<Path>) -> Result<()> {
+pub fn print_events(path: impl AsRef<Path>, include_movement: bool) -> Result<()> {
     let path = path.as_ref();
     let mut device = open_evdev_device(path)?;
     println!(
@@ -171,13 +171,17 @@ pub fn print_events(path: impl AsRef<Path>) -> Result<()> {
                 EventSummary::Key(_, key, value) => {
                     println!("key {key:?} value={value}");
                 }
-                EventSummary::RelativeAxis(_, axis, value) => {
+                EventSummary::RelativeAxis(_, axis, value) if include_movement || !is_xy(axis) => {
                     println!("relative {axis:?} value={value}");
                 }
                 _ => {}
             }
         }
     }
+}
+
+fn is_xy(axis: RelativeAxisCode) -> bool {
+    matches!(axis, RelativeAxisCode::REL_X | RelativeAxisCode::REL_Y)
 }
 
 pub fn stable_key(name: &str) -> String {

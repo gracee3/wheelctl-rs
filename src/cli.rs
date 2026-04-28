@@ -18,8 +18,13 @@ pub enum Command {
     Devices,
     /// Print evdev metadata and capabilities for a device.
     Probe { path: PathBuf },
-    /// Print key and relative events from a device until interrupted.
-    Events { path: PathBuf },
+    /// Print key and wheel events from a device until interrupted.
+    Events {
+        /// Also print REL_X and REL_Y pointer movement events.
+        #[arg(long)]
+        movement: bool,
+        path: PathBuf,
+    },
     /// Probe a device and append a default config stanza.
     Add { path: PathBuf },
     /// Remove a configured device by key.

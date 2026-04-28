@@ -27,8 +27,8 @@ fn main() -> Result<()> {
             let info = DeviceInfo::from_path(path)?;
             print_probe(&info);
         }
-        Command::Events { path } => {
-            print_events(path)?;
+        Command::Events { path, movement } => {
+            print_events(path, movement)?;
         }
         Command::Add { path } => {
             let info = DeviceInfo::from_path(&path)?;
