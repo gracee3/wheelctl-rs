@@ -1,8 +1,7 @@
-use crate::backend::change_volume;
+use crate::backend::{BackendKind, change_volume, ensure_available};
 use crate::config::{Config, DeviceConfig};
-use crate::device::is_vertical_wheel;
+use crate::device::{is_vertical_wheel, open_evdev_device};
 use anyhow::{Context, Result};
-use evdev::Device;
 use std::thread;
 use tracing::{error, info, warn};
 
@@ -17,6 +16,8 @@ pub fn run(config: Config) -> Result<()> {
         warn!("no enabled devices configured");
         return Ok(());
     }
+
+    ensure_backends_available(&enabled_devices)?;
 
     let mut handles = Vec::new();
     for device_config in enabled_devices {
@@ -37,8 +38,21 @@ pub fn run(config: Config) -> Result<()> {
     Ok(())
 }
 
+fn ensure_backends_available(devices: &[DeviceConfig]) -> Result<()> {
+    let needs_pipewire = devices.iter().any(|device| {
+        let mapping = &device.mappings.scroll_vertical;
+        mapping.enabled && mapping.backend == BackendKind::Pipewire && mapping.target == "volume"
+    });
+
+    if needs_pipewire {
+        ensure_available(BackendKind::Pipewire)?;
+    }
+
+    Ok(())
+}
+
 fn run_device(config: DeviceConfig) -> Result<()> {
-    let mut device = Device::open(&config.path)
+    let mut device = open_evdev_device(&config.path)
         .with_context(|| format!("failed to open configured device {}", config.path))?;
 
     if config.grab {

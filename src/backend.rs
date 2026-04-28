@@ -16,6 +16,19 @@ pub fn change_volume(backend: BackendKind, step: &str, increase: bool) -> Result
     }
 }
 
+pub fn ensure_available(backend: BackendKind) -> Result<()> {
+    match backend {
+        BackendKind::Pipewire => {
+            Command::new("wpctl")
+                .arg("--version")
+                .output()
+                .context("wpctl is required for the PipeWire backend but was not found on PATH")?;
+            Ok(())
+        }
+        BackendKind::Alsa => bail!("ALSA backend is not implemented in v1"),
+    }
+}
+
 fn change_pipewire_volume(step: &str, increase: bool) -> Result<()> {
     let direction = if increase { "+" } else { "-" };
     let amount = format!("{step}{direction}");

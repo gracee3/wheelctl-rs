@@ -2,6 +2,9 @@ use crate::config::{DeviceConfig, DisabledEvents, Mappings};
 use anyhow::{Context, Result};
 use evdev::{Device, EventType, RelativeAxisCode};
 use std::fs;
+use std::io;
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
@@ -22,8 +25,7 @@ pub struct DeviceInfo {
 impl DeviceInfo {
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
-        let device =
-            Device::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+        let device = open_evdev_device(path)?;
         Ok(Self::from_device(path.to_path_buf(), &device))
     }
 
@@ -110,6 +112,12 @@ pub fn list_event_devices() -> Result<Vec<DeviceInfo>> {
 pub fn print_devices(devices: &[DeviceInfo]) {
     if devices.is_empty() {
         println!("No /dev/input/event* devices found or readable.");
+        println!("If devices exist but are unreadable, check permissions with:");
+        println!("    ls -l /dev/input/event*");
+        println!(
+            "For a quick validation run, use sudo. For regular use, add your user to the input group and log out/in:"
+        );
+        println!("    sudo usermod -aG input $USER");
         return;
     }
 
@@ -173,6 +181,49 @@ pub fn stable_key(name: &str) -> String {
 
 pub fn is_vertical_wheel(event_type: EventType, code: u16) -> bool {
     event_type == EventType::RELATIVE && code == RelativeAxisCode::REL_WHEEL.0
+}
+
+pub fn open_evdev_device(path: impl AsRef<Path>) -> Result<Device> {
+    let path = path.as_ref();
+    Device::open(path).map_err(|error| open_error(path, error))
+}
+
+fn open_error(path: &Path, error: io::Error) -> anyhow::Error {
+    if error.kind() != io::ErrorKind::PermissionDenied {
+        return anyhow::Error::new(error).context(format!("failed to open {}", path.display()));
+    }
+
+    let resolved = fs::canonicalize(path).ok();
+    let details = permission_details(resolved.as_deref().unwrap_or(path));
+    let target = resolved
+        .as_ref()
+        .map(|resolved| format!(" -> {}", resolved.display()))
+        .unwrap_or_default();
+
+    anyhow::Error::new(error).context(format!(
+        "permission denied opening {}{target}{details}\n\
+         minimal workaround for validation: sudo cargo run -- <command>\n\
+         regular user access: sudo usermod -aG input $USER, then log out and back in",
+        path.display()
+    ))
+}
+
+#[cfg(unix)]
+fn permission_details(path: &Path) -> String {
+    match fs::metadata(path) {
+        Ok(metadata) => format!(
+            " (mode {:04o}, uid {}, gid {})",
+            metadata.mode() & 0o7777,
+            metadata.uid(),
+            metadata.gid()
+        ),
+        Err(_) => String::new(),
+    }
+}
+
+#[cfg(not(unix))]
+fn permission_details(_path: &Path) -> String {
+    String::new()
 }
 
 fn display_list(items: &[String]) -> String {
