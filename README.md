@@ -84,12 +84,14 @@ notification daemon, not by `notify-send` itself. On i3, use something like
 ```ini
 [global]
 origin = bottom-right
-offset = 12x48
+offset = (12, 48)
+icon_position = off
 
 [wheelctl]
 appname = wheelctl
 urgency = low
 timeout = 1
+format = "<b>%s</b>"
 ```
 
 Then test:

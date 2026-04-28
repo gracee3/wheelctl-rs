@@ -100,7 +100,7 @@ fn run_device(config: DeviceConfig, osd_config: OsdConfig) -> Result<()> {
                 if mode_state.changed {
                     let label = mode_label(&mode_state);
                     info!(device = %config.name, mode = %label, "wheel mode changed");
-                    notifier.show("Wheel mode", &label);
+                    notifier.show(&format!("Mode {label}"), "");
                     mode_state.changed = false;
                 }
             }
@@ -141,9 +141,11 @@ fn handle_vertical_scroll(
         Ok(volume) => {
             let volume = normalize_volume_display(&volume);
             let mode = mode_label(mode_state);
-            notifier.show("Volume", &format!("{volume} · {mode}"));
+            notifier.show(&format!("{volume} · {mode}"), "");
         }
         Err(error) => {
+            let mode = mode_label(mode_state);
+            notifier.show(&format!("Volume changed · {mode}"), "");
             warn!(device = %config.name, error = %error, "failed to read volume for OSD")
         }
     }

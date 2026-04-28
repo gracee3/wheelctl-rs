@@ -107,8 +107,12 @@ fn show_libnotify(summary: &str, body: &str, replace_id: Option<&str>) -> Result
         command.args(["--replace-id", replace_id]);
     }
 
+    command.arg(summary);
+    if !body.is_empty() {
+        command.arg(body);
+    }
+
     let mut child = command
-        .args([summary, body])
         .stdout(Stdio::piped())
         .spawn()
         .context("notify-send is required for libnotify OSD but was not found on PATH")?;
