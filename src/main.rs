@@ -3,6 +3,7 @@ mod cli;
 mod config;
 mod daemon;
 mod device;
+mod osd;
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;

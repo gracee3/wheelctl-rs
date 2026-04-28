@@ -1,11 +1,16 @@
-use crate::backend::{BackendKind, change_volume, ensure_available};
-use crate::config::{Config, DeviceConfig};
+use crate::backend::{BackendKind, change_volume, current_volume, ensure_available};
+use crate::config::{
+    ButtonCode, Config, DeviceConfig, ModeButtonBehavior, ModeButtonMapping, ScrollVerticalMapping,
+};
 use crate::device::{is_vertical_wheel, open_evdev_device};
+use crate::osd::{self, OsdConfig};
 use anyhow::{Context, Result};
+use evdev::{EventSummary, KeyCode};
 use std::thread;
 use tracing::{error, info, warn};
 
 pub fn run(config: Config) -> Result<()> {
+    let osd_config = config.osd;
     let enabled_devices: Vec<DeviceConfig> = config
         .devices
         .into_iter()
@@ -22,9 +27,10 @@ pub fn run(config: Config) -> Result<()> {
     let mut handles = Vec::new();
     for device_config in enabled_devices {
         let name = device_config.name.clone();
+        let osd_config = osd_config.clone();
         handles.push(thread::spawn(move || {
-            if let Err(error) = run_device(device_config) {
-                error!(device = %name, error = %error, "device worker stopped");
+            if let Err(error) = run_device(device_config, osd_config) {
+                error!(device = %name, error = ?error, "device worker stopped");
             }
         }));
     }
@@ -51,9 +57,10 @@ fn ensure_backends_available(devices: &[DeviceConfig]) -> Result<()> {
     Ok(())
 }
 
-fn run_device(config: DeviceConfig) -> Result<()> {
+fn run_device(config: DeviceConfig, osd_config: OsdConfig) -> Result<()> {
     let mut device = open_evdev_device(&config.path)
         .with_context(|| format!("failed to open configured device {}", config.path))?;
+    let mut mode_state = ModeState::default();
 
     if config.grab {
         device
@@ -80,8 +87,17 @@ fn run_device(config: DeviceConfig) -> Result<()> {
             .context("failed to read evdev events")?
         {
             if is_vertical_wheel(event.event_type(), event.code()) {
-                handle_vertical_scroll(&config, event.value())?;
+                handle_vertical_scroll(&config, &osd_config, &mode_state, event.value())?;
                 continue;
+            }
+
+            if let EventSummary::Key(_, key, value) = event.destructure() {
+                handle_mode_button(&config.mappings.mode_button, &mut mode_state, key, value);
+                if mode_state.changed {
+                    let label = if mode_state.active { "fine" } else { "normal" };
+                    osd::show(&osd_config, "Wheel mode", label);
+                    mode_state.changed = false;
+                }
             }
 
             // Reading from a grabbed device and intentionally doing nothing here
@@ -90,7 +106,12 @@ fn run_device(config: DeviceConfig) -> Result<()> {
     }
 }
 
-fn handle_vertical_scroll(config: &DeviceConfig, value: i32) -> Result<()> {
+fn handle_vertical_scroll(
+    config: &DeviceConfig,
+    osd_config: &OsdConfig,
+    mode_state: &ModeState,
+    value: i32,
+) -> Result<()> {
     if value == 0 || !config.mappings.scroll_vertical.enabled {
         return Ok(());
     }
@@ -106,9 +127,120 @@ fn handle_vertical_scroll(config: &DeviceConfig, value: i32) -> Result<()> {
     }
 
     let increase = value > 0;
+    let step = active_step(mapping, mode_state);
     for _ in 0..value.unsigned_abs() {
-        change_volume(mapping.backend, &mapping.step, increase)?;
+        change_volume(mapping.backend, step, increase)?;
+    }
+
+    if osd_config.enabled {
+        match current_volume(mapping.backend) {
+            Ok(volume) => osd::show(osd_config, "Volume", &volume),
+            Err(error) => {
+                warn!(device = %config.name, error = %error, "failed to read volume for OSD")
+            }
+        }
     }
 
     Ok(())
+}
+
+fn handle_mode_button(
+    mapping: &ModeButtonMapping,
+    state: &mut ModeState,
+    key: KeyCode,
+    value: i32,
+) {
+    if !mapping.enabled || !button_matches(mapping.button, key) {
+        return;
+    }
+
+    match mapping.behavior {
+        ModeButtonBehavior::Toggle if value == 1 => {
+            state.active = !state.active;
+            state.changed = true;
+        }
+        ModeButtonBehavior::Hold => {
+            let active = value != 0;
+            if state.active != active {
+                state.active = active;
+                state.changed = true;
+            }
+        }
+        _ => {}
+    }
+}
+
+fn active_step<'a>(mapping: &'a ScrollVerticalMapping, state: &ModeState) -> &'a str {
+    if state.active {
+        &mapping.fine_step
+    } else {
+        &mapping.step
+    }
+}
+
+fn button_matches(configured: ButtonCode, key: KeyCode) -> bool {
+    match configured {
+        ButtonCode::BtnRight => key == KeyCode::BTN_RIGHT,
+    }
+}
+
+#[derive(Debug, Default)]
+struct ModeState {
+    active: bool,
+    changed: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ModeState, active_step, handle_mode_button};
+    use crate::config::{ButtonCode, ModeButtonBehavior, ModeButtonMapping, ScrollVerticalMapping};
+    use evdev::KeyCode;
+
+    #[test]
+    fn right_button_toggle_switches_fine_mode() {
+        let mapping = ModeButtonMapping {
+            enabled: true,
+            button: ButtonCode::BtnRight,
+            behavior: ModeButtonBehavior::Toggle,
+        };
+        let mut state = ModeState::default();
+
+        handle_mode_button(&mapping, &mut state, KeyCode::BTN_RIGHT, 1);
+        assert!(state.active);
+        assert!(state.changed);
+
+        state.changed = false;
+        handle_mode_button(&mapping, &mut state, KeyCode::BTN_RIGHT, 0);
+        assert!(state.active);
+        assert!(!state.changed);
+
+        handle_mode_button(&mapping, &mut state, KeyCode::BTN_RIGHT, 1);
+        assert!(!state.active);
+    }
+
+    #[test]
+    fn hold_mode_tracks_button_state() {
+        let mapping = ModeButtonMapping {
+            enabled: true,
+            button: ButtonCode::BtnRight,
+            behavior: ModeButtonBehavior::Hold,
+        };
+        let mut state = ModeState::default();
+
+        handle_mode_button(&mapping, &mut state, KeyCode::BTN_RIGHT, 1);
+        assert!(state.active);
+
+        handle_mode_button(&mapping, &mut state, KeyCode::BTN_RIGHT, 0);
+        assert!(!state.active);
+    }
+
+    #[test]
+    fn active_step_uses_fine_step_when_mode_is_active() {
+        let mapping = ScrollVerticalMapping::enabled_pipewire_volume();
+        let mut state = ModeState::default();
+        assert_eq!(active_step(&mapping, &state), "5%");
+
+        state.active = true;
+        assert_eq!(active_step(&mapping, &state), "1.5%");
+    }
 }

@@ -1,4 +1,5 @@
 use crate::backend::BackendKind;
+use crate::osd::OsdConfig;
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -8,6 +9,8 @@ use std::path::PathBuf;
 pub struct Config {
     #[serde(default)]
     pub devices: Vec<DeviceConfig>,
+    #[serde(default)]
+    pub osd: OsdConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -35,6 +38,8 @@ pub struct DeviceConfig {
 pub struct Mappings {
     #[serde(default = "ScrollVerticalMapping::enabled_pipewire_volume")]
     pub scroll_vertical: ScrollVerticalMapping,
+    #[serde(default)]
+    pub mode_button: ModeButtonMapping,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -47,6 +52,31 @@ pub struct ScrollVerticalMapping {
     pub target: String,
     #[serde(default = "default_step")]
     pub step: String,
+    #[serde(default = "default_fine_step")]
+    pub fine_step: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ModeButtonMapping {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_mode_button")]
+    pub button: ButtonCode,
+    #[serde(default)]
+    pub behavior: ModeButtonBehavior,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ButtonCode {
+    BtnRight,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ModeButtonBehavior {
+    Toggle,
+    Hold,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -63,6 +93,7 @@ impl Default for Mappings {
     fn default() -> Self {
         Self {
             scroll_vertical: ScrollVerticalMapping::enabled_pipewire_volume(),
+            mode_button: ModeButtonMapping::default(),
         }
     }
 }
@@ -74,7 +105,24 @@ impl ScrollVerticalMapping {
             backend: BackendKind::Pipewire,
             target: default_target(),
             step: default_step(),
+            fine_step: default_fine_step(),
         }
+    }
+}
+
+impl Default for ModeButtonMapping {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            button: ButtonCode::BtnRight,
+            behavior: ModeButtonBehavior::Toggle,
+        }
+    }
+}
+
+impl Default for ModeButtonBehavior {
+    fn default() -> Self {
+        Self::Toggle
     }
 }
 
@@ -154,9 +202,17 @@ fn default_step() -> String {
     "5%".to_string()
 }
 
+fn default_fine_step() -> String {
+    "1.5%".to_string()
+}
+
+fn default_mode_button() -> ButtonCode {
+    ButtonCode::BtnRight
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Config, DeviceConfig, DisabledEvents, Mappings};
+    use super::{Config, DeviceConfig, DisabledEvents, Mappings, ModeButtonBehavior};
 
     #[test]
     fn missing_config_defaults_to_no_devices() {
@@ -182,6 +238,8 @@ mod tests {
         assert!(device.enabled);
         assert!(device.grab);
         assert_eq!(device.mappings.scroll_vertical.step, "5%");
+        assert_eq!(device.mappings.scroll_vertical.fine_step, "1.5%");
+        assert!(device.mappings.mode_button.enabled);
     }
 
     #[test]
@@ -203,6 +261,12 @@ enabled = true
 backend = "pipewire"
 target = "volume"
 step = "5%"
+fine_step = "1.5%"
+
+[devices.mappings.mode_button]
+enabled = true
+button = "BTN_RIGHT"
+behavior = "toggle"
 
 [devices.disabled]
 movement = true
@@ -216,5 +280,10 @@ horizontal_scroll = true
         assert_eq!(device.key, "dell-usb-optical-mouse");
         assert_eq!(device.vendor_id.as_deref(), Some("413c"));
         assert!(device.disabled.buttons);
+        assert_eq!(
+            device.mappings.mode_button.behavior,
+            ModeButtonBehavior::Toggle
+        );
+        assert!(!config.osd.enabled);
     }
 }

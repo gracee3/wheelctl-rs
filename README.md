@@ -23,6 +23,7 @@ Linux only. The program reads `/dev/input/event*` devices through evdev.
 - Linux evdev input devices
 - PipeWire/WirePlumber `wpctl` available on `PATH`
 - permission to read the selected `/dev/input/event*` device
+- optional: `notify-send` for libnotify OSD notifications
 
 Many distributions restrict `/dev/input/event*` access to `root` or an `input`
 group. Prefer a targeted udev rule or group-based access for the specific
@@ -106,16 +107,35 @@ enabled = true
 backend = "pipewire"
 target = "volume"
 step = "5%"
+fine_step = "1.5%"
+
+[devices.mappings.mode_button]
+enabled = true
+button = "BTN_RIGHT"
+behavior = "toggle"
 
 [devices.disabled]
 movement = true
 buttons = true
 horizontal_scroll = true
+
+[osd]
+enabled = false
+backend = "libnotify"
 ```
 
 `wheelctl add` derives `key` from the device name and writes a default stanza.
 If you have multiple identical devices, edit the key to keep it unique and
 human-readable.
+
+`mode_button` is consumed by the grabbed device. With the default toggle
+behavior, right click switches between the normal `step` and `fine_step`.
+Set `behavior = "hold"` if you prefer fine mode only while the button is held.
+
+`osd` is optional and separate from volume control. When enabled with the
+libnotify backend, `wheelctl` shells out to `notify-send` after volume or mode
+changes. Missing or failing notifications are logged and do not stop the input
+loop.
 
 ## Justfile
 
@@ -138,6 +158,8 @@ The systemd command is only a placeholder for future Justfile-only scaffolding.
 - Only `REL_WHEEL` is mapped in v1.
 - PipeWire volume is implemented by shelling out to `wpctl`.
 - ALSA and PulseAudio volume control are not implemented.
+- OSD notifications depend on the desktop notification daemon and may look
+  different across desktop environments.
 - No udev rule generation or permission setup is provided.
 - No systemd install support is built into the Rust binary.
 - Device hotplug/reconnect handling is minimal; restart `wheelctl run` after
