@@ -75,6 +75,7 @@ cargo run -- run
 ```text
 wheelctl devices
 wheelctl probe <event-device-or-by-id-path>
+wheelctl events <event-device-or-by-id-path>
 wheelctl add <event-device-or-by-id-path>
 wheelctl remove <device-key>
 wheelctl show
@@ -132,6 +133,7 @@ human-readable.
 `mode_button` is consumed by the grabbed device. With the default toggle
 behavior, right click switches between the normal `step` and `fine_step`.
 Set `behavior = "hold"` if you prefer fine mode only while the button is held.
+The active mode is shown when it changes and included in volume OSD updates.
 
 `osd` is optional and separate from volume control. When enabled with the
 libnotify backend, `wheelctl` shells out to `notify-send` after volume or mode
@@ -147,6 +149,9 @@ wheelctl keeps libnotify OSD updates low urgency, transient, short-lived, and
 replaced in place when the notification daemon supports replacement IDs. Fade
 timing and visual style are controlled by the notification daemon, for example
 your `dunst` configuration.
+
+`wheelctl events <path>` is a small diagnostic helper for confirming which
+button and wheel event codes a device emits.
 
 ## Justfile
 

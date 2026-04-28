@@ -9,7 +9,7 @@ use anyhow::{Context, Result, bail};
 use clap::Parser;
 use cli::{Cli, Command};
 use config::{Config, config_path};
-use device::{DeviceInfo, list_event_devices, print_devices, print_probe};
+use device::{DeviceInfo, list_event_devices, print_devices, print_events, print_probe};
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<()> {
@@ -26,6 +26,9 @@ fn main() -> Result<()> {
         Command::Probe { path } => {
             let info = DeviceInfo::from_path(path)?;
             print_probe(&info);
+        }
+        Command::Events { path } => {
+            print_events(path)?;
         }
         Command::Add { path } => {
             let info = DeviceInfo::from_path(&path)?;

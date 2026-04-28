@@ -95,11 +95,8 @@ fn run_device(config: DeviceConfig, osd_config: OsdConfig) -> Result<()> {
             if let EventSummary::Key(_, key, value) = event.destructure() {
                 handle_mode_button(&config.mappings.mode_button, &mut mode_state, key, value);
                 if mode_state.changed {
-                    let label = if mode_state.active {
-                        format!("fine ({})", config.mappings.scroll_vertical.fine_step)
-                    } else {
-                        format!("normal ({})", config.mappings.scroll_vertical.step)
-                    };
+                    let label = mode_label(&config.mappings.scroll_vertical, &mode_state);
+                    info!(device = %config.name, mode = %label, "wheel mode changed");
                     notifier.show("Wheel mode", &label);
                     mode_state.changed = false;
                 }
@@ -140,7 +137,8 @@ fn handle_vertical_scroll(
     match current_volume(mapping.backend) {
         Ok(volume) => {
             let volume = normalize_volume_display(&volume);
-            notifier.show("Volume", &volume);
+            let mode = mode_label(mapping, mode_state);
+            notifier.show("Volume", &format!("{volume} · {mode}"));
         }
         Err(error) => {
             warn!(device = %config.name, error = %error, "failed to read volume for OSD")
@@ -184,6 +182,14 @@ fn active_step<'a>(mapping: &'a ScrollVerticalMapping, state: &ModeState) -> &'a
     }
 }
 
+fn mode_label(mapping: &ScrollVerticalMapping, state: &ModeState) -> String {
+    if state.active {
+        format!("fine {}", mapping.fine_step)
+    } else {
+        format!("normal {}", mapping.step)
+    }
+}
+
 fn button_matches(configured: ButtonCode, key: KeyCode) -> bool {
     match configured {
         ButtonCode::BtnRight => key == KeyCode::BTN_RIGHT,
@@ -215,7 +221,7 @@ struct ModeState {
 
 #[cfg(test)]
 mod tests {
-    use super::{ModeState, active_step, handle_mode_button, normalize_volume_display};
+    use super::{ModeState, active_step, handle_mode_button, mode_label, normalize_volume_display};
     use crate::config::{ButtonCode, ModeButtonBehavior, ModeButtonMapping, ScrollVerticalMapping};
     use evdev::KeyCode;
 
@@ -275,5 +281,15 @@ mod tests {
             "34% muted"
         );
         assert_eq!(normalize_volume_display("unexpected"), "unexpected");
+    }
+
+    #[test]
+    fn mode_label_includes_active_step() {
+        let mapping = ScrollVerticalMapping::enabled_pipewire_volume();
+        let mut state = ModeState::default();
+        assert_eq!(mode_label(&mapping, &state), "normal 5%");
+
+        state.active = true;
+        assert_eq!(mode_label(&mapping, &state), "fine 1.5%");
     }
 }

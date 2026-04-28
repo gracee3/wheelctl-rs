@@ -1,6 +1,6 @@
 use crate::config::{DeviceConfig, DisabledEvents, Mappings};
 use anyhow::{Context, Result};
-use evdev::{Device, EventType, RelativeAxisCode};
+use evdev::{Device, EventSummary, EventType, RelativeAxisCode};
 use std::fs;
 use std::io;
 #[cfg(unix)]
@@ -152,6 +152,32 @@ pub fn print_probe(info: &DeviceInfo) {
     println!("event_types: {}", info.event_types.join(", "));
     println!("relative_axes: {}", display_list(&info.relative_axes));
     println!("keys/buttons: {}", display_list(&info.keys));
+}
+
+pub fn print_events(path: impl AsRef<Path>) -> Result<()> {
+    let path = path.as_ref();
+    let mut device = open_evdev_device(path)?;
+    println!(
+        "Reading events from {}. Press Ctrl-C to stop.",
+        path.display()
+    );
+
+    loop {
+        for event in device
+            .fetch_events()
+            .context("failed to read evdev events")?
+        {
+            match event.destructure() {
+                EventSummary::Key(_, key, value) => {
+                    println!("key {key:?} value={value}");
+                }
+                EventSummary::RelativeAxis(_, axis, value) => {
+                    println!("relative {axis:?} value={value}");
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 pub fn stable_key(name: &str) -> String {
