@@ -31,7 +31,8 @@ Config path:
 ~/.config/wheelctl/config.toml
 ```
 
-Full example:
+Full example. Fine mode is the startup/default mode (`fine_step = "1%"`);
+middle click toggles to normal step mode (`step = "5%"`) and back.
 
 ```toml
 [[devices]]
@@ -66,8 +67,7 @@ enabled = true
 backend = "libnotify"
 ```
 
-Middle click toggles between normal and fine mode. The OSD readout shows the
-current volume plus `normal` or `fine`.
+The OSD readout shows the current volume plus `normal` or `fine`.
 
 ## OSD
 
@@ -78,12 +78,18 @@ replacement IDs.
 
 Screen position, fade timing, and visual style are controlled by your
 notification daemon, not by `notify-send` itself. On i3, use something like
-`dunst`; for bottom-right placement, configure dunst, for example:
+`dunst`; for bottom-right placement, merge
+`packaging/dunst/wheelctl-bottom-right.conf` into `~/.config/dunst/dunstrc`:
 
 ```ini
 [global]
 origin = bottom-right
 offset = 12x48
+
+[wheelctl]
+appname = wheelctl
+urgency = low
+timeout = 1
 ```
 
 Then test:

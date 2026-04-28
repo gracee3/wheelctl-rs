@@ -60,7 +60,7 @@ fn ensure_backends_available(devices: &[DeviceConfig]) -> Result<()> {
 fn run_device(config: DeviceConfig, osd_config: OsdConfig) -> Result<()> {
     let mut device = open_evdev_device(&config.path)
         .with_context(|| format!("failed to open configured device {}", config.path))?;
-    let mut mode_state = ModeState::default();
+    let mut mode_state = ModeState::fine();
     let mut notifier = Notifier::new(osd_config);
 
     if config.grab {
@@ -220,6 +220,15 @@ struct ModeState {
     changed: bool,
 }
 
+impl ModeState {
+    fn fine() -> Self {
+        Self {
+            active: true,
+            changed: false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ModeState, active_step, handle_mode_button, mode_label, normalize_volume_display};
@@ -267,11 +276,11 @@ mod tests {
     #[test]
     fn active_step_uses_fine_step_when_mode_is_active() {
         let mapping = ScrollVerticalMapping::enabled_pipewire_volume();
-        let mut state = ModeState::default();
-        assert_eq!(active_step(&mapping, &state), "5%");
-
-        state.active = true;
+        let state = ModeState::fine();
         assert_eq!(active_step(&mapping, &state), "1%");
+
+        let state = ModeState::default();
+        assert_eq!(active_step(&mapping, &state), "5%");
     }
 
     #[test]
@@ -286,10 +295,10 @@ mod tests {
 
     #[test]
     fn mode_label_includes_active_step() {
-        let mut state = ModeState::default();
-        assert_eq!(mode_label(&state), "normal");
-
-        state.active = true;
+        let state = ModeState::fine();
         assert_eq!(mode_label(&state), "fine");
+
+        let state = ModeState::default();
+        assert_eq!(mode_label(&state), "normal");
     }
 }
