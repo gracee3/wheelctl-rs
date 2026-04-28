@@ -1,7 +1,18 @@
 [package]
-name = "wheelctl"
+name = "wheelctl-rs"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
+description = "Linux evdev utility that turns a grabbed mouse wheel into a PipeWire volume wheel"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/gracee3/wheelctl-rs"
+readme = "README.md"
+keywords = ["evdev", "pipewire", "volume", "linux", "mouse"]
+categories = ["command-line-utilities", "multimedia::audio"]
+
+[[bin]]
+name = "wheelctl"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.100"

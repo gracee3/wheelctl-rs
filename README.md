@@ -1,104 +1,44 @@
 # wheelctl-rs
 
-`wheelctl-rs` is a small Linux utility that turns a configured USB mouse or
-rotary encoder exposed through evdev into a volume/control wheel.
+Linux-only evdev utility that grabs a configured mouse/encoder and maps
+`REL_WHEEL` to PipeWire volume through `wpctl`.
 
-Version 1 is deliberately narrow:
-
-- grab one or more configured evdev devices exclusively
-- suppress normal pointer movement, buttons, and other unmapped events while running
-- map vertical scroll wheel events (`REL_WHEEL`) to PipeWire volume changes through `wpctl`
-- run in the foreground as `wheelctl run`
-
-Systemd support is intended to live in Justfile scaffolding later. The
-`wheelctl` binary does not install services, daemonize, or fork.
-
-## Platform
-
-Linux only. The program reads `/dev/input/event*` devices through evdev.
-
-## Requirements
-
-- Rust toolchain for building from source
-- Linux evdev input devices
-- PipeWire/WirePlumber `wpctl` available on `PATH`
-- permission to read the selected `/dev/input/event*` device
-- optional: `notify-send` for libnotify OSD notifications
-
-Many distributions restrict `/dev/input/event*` access to `root` or an `input`
-group. Prefer a targeted udev rule or group-based access for the specific
-device you want to dedicate as a wheel.
-
-## Warning
-
-When `grab = true`, the configured device is grabbed exclusively. While
-`wheelctl run` is active, that mouse or encoder will stop acting like a normal
-desktop pointer/button device. This is the intended behavior for a dedicated
-control wheel.
-
-Keep another keyboard or pointing device available while testing.
-
-## Basic Flow
-
-List readable input devices:
+## Cargo Commands
 
 ```sh
 cargo run -- devices
-```
-
-Probe a candidate device:
-
-```sh
-cargo run -- probe /dev/input/by-id/usb-Dell_USB_Optical_Mouse-event-mouse
-```
-
-Add it to the config:
-
-```sh
-cargo run -- add /dev/input/by-id/usb-Dell_USB_Optical_Mouse-event-mouse
-```
-
-Review the parsed config:
-
-```sh
+cargo run -- probe /dev/input/by-id/usb-PixArt_Dell_MS116_USB_Optical_Mouse-event-mouse
+cargo run -- events /dev/input/by-id/usb-PixArt_Dell_MS116_USB_Optical_Mouse-event-mouse
+cargo run -- add /dev/input/by-id/usb-PixArt_Dell_MS116_USB_Optical_Mouse-event-mouse
 cargo run -- show
-```
-
-Run in the foreground:
-
-```sh
+cargo run -- osd-test
 cargo run -- run
 ```
 
-## Commands
+`events` grabs the device by default and hides `REL_X`/`REL_Y` movement:
 
-```text
-wheelctl devices
-wheelctl probe <event-device-or-by-id-path>
-wheelctl events <event-device-or-by-id-path>
-wheelctl add <event-device-or-by-id-path>
-wheelctl remove <device-key>
-wheelctl show
-wheelctl osd-test
-wheelctl run
+```sh
+cargo run -- events /dev/input/by-id/usb-PixArt_Dell_MS116_USB_Optical_Mouse-event-mouse
+cargo run -- events --movement /dev/input/by-id/usb-PixArt_Dell_MS116_USB_Optical_Mouse-event-mouse
+cargo run -- events --no-grab /dev/input/by-id/usb-PixArt_Dell_MS116_USB_Optical_Mouse-event-mouse
 ```
 
 ## Config
 
-The config file is read from:
+Config path:
 
 ```text
 ~/.config/wheelctl/config.toml
 ```
 
-Example:
+Full example:
 
 ```toml
 [[devices]]
-key = "dell-usb-optical-mouse"
-name = "Dell USB Optical Mouse"
-path = "/dev/input/by-id/usb-Dell_USB_Optical_Mouse-event-mouse"
-phys = "usb-0000:00:14.0-1/input0"
+key = "pixart-dell-ms116-usb-optical-mouse"
+name = "PixArt Dell MS116 USB Optical Mouse"
+path = "/dev/input/by-id/usb-PixArt_Dell_MS116_USB_Optical_Mouse-event-mouse"
+phys = "usb-0000:00:14.0-2/input0"
 vendor_id = "413c"
 product_id = "301a"
 enabled = true
@@ -109,7 +49,7 @@ enabled = true
 backend = "pipewire"
 target = "volume"
 step = "5%"
-fine_step = "1.5%"
+fine_step = "1%"
 
 [devices.mappings.mode_button]
 enabled = true
@@ -126,40 +66,33 @@ enabled = true
 backend = "libnotify"
 ```
 
-`wheelctl add` derives `key` from the device name and writes a default stanza.
-If you have multiple identical devices, edit the key to keep it unique and
-human-readable.
+Middle click toggles between normal and fine mode. The OSD readout shows the
+current volume plus `normal` or `fine`.
 
-`mode_button` is consumed by the grabbed device. With the default toggle
-behavior, middle click switches between the normal `step` and `fine_step`.
-Set `behavior = "hold"` if you prefer fine mode only while the button is held.
-The active mode is shown when it changes and included in volume OSD updates.
+## OSD
 
-`osd` is optional and separate from volume control. When enabled with the
-libnotify backend, `wheelctl` shells out to `notify-send` after volume or mode
-changes. Missing or failing notifications are logged and do not stop the input
-loop. Run `wheelctl osd-test` to verify your desktop notification daemon is
-visible before relying on mode toggles.
+OSD is implemented separately in `src/osd.rs` by shelling out to
+`notify-send`. wheelctl sends low-urgency, transient, short-lived libnotify
+notifications and replaces the previous notification when the daemon supports
+replacement IDs.
 
-On i3, `notify-send` usually needs a notification daemon such as `dunst`
-running. If `wheelctl osd-test` times out or does not show anything, start a
-daemon before relying on OSD state.
+Screen position, fade timing, and visual style are controlled by your
+notification daemon, not by `notify-send` itself. On i3, use something like
+`dunst`; for bottom-right placement, configure dunst, for example:
 
-wheelctl keeps libnotify OSD updates low urgency, transient, short-lived, and
-replaced in place when the notification daemon supports replacement IDs. Fade
-timing and visual style are controlled by the notification daemon, for example
-your `dunst` configuration.
+```ini
+[global]
+origin = bottom-right
+offset = 12x48
+```
 
-`wheelctl events <path>` is a small diagnostic helper for confirming which
-button and wheel event codes a device emits. It grabs the device by default so
-diagnostic clicks and scrolls do not leak into your terminal or window manager.
-Pointer movement (`REL_X` and `REL_Y`) is hidden by default; use
-`wheelctl events --movement <path>` to show it, or `--no-grab` for passive
-observation.
+Then test:
+
+```sh
+cargo run -- osd-test
+```
 
 ## Justfile
-
-Convenience commands:
 
 ```sh
 just build
@@ -168,19 +101,42 @@ just fmt
 just test
 just run
 just devices
-just install-systemd-user-placeholder
+just install
+just install-systemd-user
+just uninstall-systemd-user
 ```
 
-The systemd command is only a placeholder for future Justfile-only scaffolding.
+## systemd User Service
 
-## Limitations
+wheelctl only supports a systemd user service. Do not install it as a system
+service: it needs the user's PipeWire session, notification daemon, and config
+directory. The Rust binary does not install or manage systemd; the Justfile
+copies the provided user unit from `packaging/systemd/user/wheelctl.service`.
 
-- Only `REL_WHEEL` is mapped in v1.
-- PipeWire volume is implemented by shelling out to `wpctl`.
-- ALSA and PulseAudio volume control are not implemented.
-- OSD notifications depend on the desktop notification daemon and may look
-  different across desktop environments.
-- No udev rule generation or permission setup is provided.
-- No systemd install support is built into the Rust binary.
-- Device hotplug/reconnect handling is minimal; restart `wheelctl run` after
-  reconnecting a configured device.
+Manual commands:
+
+```sh
+cargo install --path .
+install -Dm644 packaging/systemd/user/wheelctl.service ~/.config/systemd/user/wheelctl.service
+systemctl --user daemon-reload
+systemctl --user enable --now wheelctl.service
+systemctl --user status wheelctl.service
+```
+
+Uninstall the user service:
+
+```sh
+systemctl --user disable --now wheelctl.service
+rm -f ~/.config/systemd/user/wheelctl.service
+systemctl --user daemon-reload
+```
+
+## Notes
+
+- Requires Linux evdev device access, usually via the `input` group or a udev
+  rule.
+- Requires PipeWire/WirePlumber `wpctl`.
+- When `grab = true`, the configured mouse stops acting like a normal desktop
+  mouse while `wheelctl run` is active.
+- PulseAudio, ALSA control, hotplug handling, and native PipeWire APIs are out
+  of scope for v1.

@@ -16,6 +16,15 @@ run:
 devices:
     cargo run -- devices
 
-# Placeholder for future user-level systemd scaffolding.
-install-systemd-user-placeholder:
-    @echo "systemd user install support is planned for a future Justfile-only step"
+install:
+    cargo install --path .
+
+install-systemd-user:
+    install -Dm644 packaging/systemd/user/wheelctl.service ~/.config/systemd/user/wheelctl.service
+    systemctl --user daemon-reload
+    systemctl --user enable --now wheelctl.service
+
+uninstall-systemd-user:
+    -systemctl --user disable --now wheelctl.service
+    rm -f ~/.config/systemd/user/wheelctl.service
+    systemctl --user daemon-reload

@@ -1,0 +1,14 @@
+[Unit]
+Description=wheelctl evdev volume wheel (user service)
+Documentation=https://github.com/gracee3/wheelctl-rs
+After=pipewire.service wireplumber.service
+
+[Service]
+Type=simple
+ExecStart=%h/.cargo/bin/wheelctl run
+Restart=on-failure
+RestartSec=2
+Environment=RUST_LOG=wheelctl=info
+
+[Install]
+WantedBy=default.target
