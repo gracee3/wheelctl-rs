@@ -1,11 +1,14 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::io::Read;
 use std::process::Command;
+use std::process::Stdio;
 use std::thread;
 use std::time::{Duration, Instant};
 use tracing::warn;
 
 const NOTIFY_TIMEOUT: Duration = Duration::from_millis(1500);
+const EXPIRE_MS: &str = "700";
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct OsdConfig {
@@ -34,6 +37,8 @@ impl Default for OsdConfig {
 pub struct Notifier {
     config: OsdConfig,
     disabled_after_error: bool,
+    last_message: Option<(String, String)>,
+    replace_id: Option<String>,
 }
 
 impl Notifier {
@@ -41,6 +46,8 @@ impl Notifier {
         Self {
             config,
             disabled_after_error: false,
+            last_message: None,
+            replace_id: None,
         }
     }
 
@@ -49,32 +56,60 @@ impl Notifier {
             return;
         }
 
-        if let Err(error) = show_inner(self.config.backend, summary, body) {
-            self.disabled_after_error = true;
-            warn!(error = %error, "failed to show OSD notification; disabling OSD for this run");
+        let message = (summary.to_string(), body.to_string());
+        if self.last_message.as_ref() == Some(&message) {
+            return;
+        }
+
+        match show_inner(
+            self.config.backend,
+            summary,
+            body,
+            self.replace_id.as_deref(),
+        ) {
+            Ok(replace_id) => {
+                self.replace_id = replace_id;
+                self.last_message = Some(message);
+            }
+            Err(error) => {
+                self.disabled_after_error = true;
+                warn!(error = %error, "failed to show OSD notification; disabling OSD for this run");
+            }
         }
     }
 }
 
 pub fn show_checked(config: &OsdConfig, summary: &str, body: &str) -> Result<()> {
-    show_inner(config.backend, summary, body)
+    show_inner(config.backend, summary, body, None).map(|_| ())
 }
 
-fn show_inner(backend: OsdBackend, summary: &str, body: &str) -> Result<()> {
+fn show_inner(
+    backend: OsdBackend,
+    summary: &str,
+    body: &str,
+    replace_id: Option<&str>,
+) -> Result<Option<String>> {
     match backend {
-        OsdBackend::Libnotify => show_libnotify(summary, body),
+        OsdBackend::Libnotify => show_libnotify(summary, body, replace_id),
     }
 }
 
-fn show_libnotify(summary: &str, body: &str) -> Result<()> {
-    let mut child = Command::new("notify-send")
-        .args([
-            "--app-name=wheelctl",
-            "--expire-time=900",
-            "--hint=string:x-canonical-private-synchronous:wheelctl",
-            summary,
-            body,
-        ])
+fn show_libnotify(summary: &str, body: &str, replace_id: Option<&str>) -> Result<Option<String>> {
+    let mut command = Command::new("notify-send");
+    command
+        .args(["--app-name=wheelctl", "--urgency=low", "--transient"])
+        .args(["--expire-time", EXPIRE_MS])
+        .args(["--category", "device"])
+        .args(["--hint", "string:x-canonical-private-synchronous:wheelctl"])
+        .arg("--print-id");
+
+    if let Some(replace_id) = replace_id {
+        command.args(["--replace-id", replace_id]);
+    }
+
+    let mut child = command
+        .args([summary, body])
+        .stdout(Stdio::piped())
         .spawn()
         .context("notify-send is required for libnotify OSD but was not found on PATH")?;
 
@@ -87,7 +122,14 @@ fn show_libnotify(summary: &str, body: &str) -> Result<()> {
             if !status.success() {
                 anyhow::bail!("notify-send failed with status {status}");
             }
-            return Ok(());
+            let mut output = String::new();
+            if let Some(mut stdout) = child.stdout.take() {
+                stdout
+                    .read_to_string(&mut output)
+                    .context("failed to read notify-send output")?;
+            }
+            let id = output.trim().to_string();
+            return Ok((!id.is_empty()).then_some(id));
         }
 
         if started.elapsed() >= NOTIFY_TIMEOUT {

@@ -95,8 +95,12 @@ fn run_device(config: DeviceConfig, osd_config: OsdConfig) -> Result<()> {
             if let EventSummary::Key(_, key, value) = event.destructure() {
                 handle_mode_button(&config.mappings.mode_button, &mut mode_state, key, value);
                 if mode_state.changed {
-                    let label = if mode_state.active { "fine" } else { "normal" };
-                    notifier.show("Wheel mode", label);
+                    let label = if mode_state.active {
+                        format!("fine ({})", config.mappings.scroll_vertical.fine_step)
+                    } else {
+                        format!("normal ({})", config.mappings.scroll_vertical.step)
+                    };
+                    notifier.show("Wheel mode", &label);
                     mode_state.changed = false;
                 }
             }
@@ -134,7 +138,10 @@ fn handle_vertical_scroll(
     }
 
     match current_volume(mapping.backend) {
-        Ok(volume) => notifier.show("Volume", &volume),
+        Ok(volume) => {
+            let volume = normalize_volume_display(&volume);
+            notifier.show("Volume", &volume);
+        }
         Err(error) => {
             warn!(device = %config.name, error = %error, "failed to read volume for OSD")
         }
@@ -183,6 +190,23 @@ fn button_matches(configured: ButtonCode, key: KeyCode) -> bool {
     }
 }
 
+fn normalize_volume_display(raw: &str) -> String {
+    let muted = raw.to_ascii_lowercase().contains("muted");
+    let Some(value) = raw
+        .split_whitespace()
+        .find_map(|part| part.parse::<f32>().ok())
+    else {
+        return raw.to_string();
+    };
+
+    let percent = (value * 100.0).round() as i32;
+    if muted {
+        format!("{percent}% muted")
+    } else {
+        format!("{percent}%")
+    }
+}
+
 #[derive(Debug, Default)]
 struct ModeState {
     active: bool,
@@ -191,7 +215,7 @@ struct ModeState {
 
 #[cfg(test)]
 mod tests {
-    use super::{ModeState, active_step, handle_mode_button};
+    use super::{ModeState, active_step, handle_mode_button, normalize_volume_display};
     use crate::config::{ButtonCode, ModeButtonBehavior, ModeButtonMapping, ScrollVerticalMapping};
     use evdev::KeyCode;
 
@@ -241,5 +265,15 @@ mod tests {
 
         state.active = true;
         assert_eq!(active_step(&mapping, &state), "1.5%");
+    }
+
+    #[test]
+    fn volume_display_is_normalized_for_osd() {
+        assert_eq!(normalize_volume_display("Volume: 0.90"), "90%");
+        assert_eq!(
+            normalize_volume_display("Volume: 0.34 [MUTED]"),
+            "34% muted"
+        );
+        assert_eq!(normalize_volume_display("unexpected"), "unexpected");
     }
 }

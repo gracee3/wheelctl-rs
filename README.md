@@ -143,6 +143,11 @@ On i3, `notify-send` usually needs a notification daemon such as `dunst`
 running. If `wheelctl osd-test` times out or does not show anything, start a
 daemon before relying on OSD state.
 
+wheelctl keeps libnotify OSD updates low urgency, transient, short-lived, and
+replaced in place when the notification daemon supports replacement IDs. Fade
+timing and visual style are controlled by the notification daemon, for example
+your `dunst` configuration.
+
 ## Justfile
 
 Convenience commands:
