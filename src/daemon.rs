@@ -193,6 +193,7 @@ fn mode_label(mapping: &ScrollVerticalMapping, state: &ModeState) -> String {
 fn button_matches(configured: ButtonCode, key: KeyCode) -> bool {
     match configured {
         ButtonCode::BtnRight => key == KeyCode::BTN_RIGHT,
+        ButtonCode::BtnMiddle => key == KeyCode::BTN_MIDDLE,
     }
 }
 
@@ -226,24 +227,24 @@ mod tests {
     use evdev::KeyCode;
 
     #[test]
-    fn right_button_toggle_switches_fine_mode() {
+    fn middle_button_toggle_switches_fine_mode() {
         let mapping = ModeButtonMapping {
             enabled: true,
-            button: ButtonCode::BtnRight,
+            button: ButtonCode::BtnMiddle,
             behavior: ModeButtonBehavior::Toggle,
         };
         let mut state = ModeState::default();
 
-        handle_mode_button(&mapping, &mut state, KeyCode::BTN_RIGHT, 1);
+        handle_mode_button(&mapping, &mut state, KeyCode::BTN_MIDDLE, 1);
         assert!(state.active);
         assert!(state.changed);
 
         state.changed = false;
-        handle_mode_button(&mapping, &mut state, KeyCode::BTN_RIGHT, 0);
+        handle_mode_button(&mapping, &mut state, KeyCode::BTN_MIDDLE, 0);
         assert!(state.active);
         assert!(!state.changed);
 
-        handle_mode_button(&mapping, &mut state, KeyCode::BTN_RIGHT, 1);
+        handle_mode_button(&mapping, &mut state, KeyCode::BTN_MIDDLE, 1);
         assert!(!state.active);
     }
 
@@ -251,15 +252,15 @@ mod tests {
     fn hold_mode_tracks_button_state() {
         let mapping = ModeButtonMapping {
             enabled: true,
-            button: ButtonCode::BtnRight,
+            button: ButtonCode::BtnMiddle,
             behavior: ModeButtonBehavior::Hold,
         };
         let mut state = ModeState::default();
 
-        handle_mode_button(&mapping, &mut state, KeyCode::BTN_RIGHT, 1);
+        handle_mode_button(&mapping, &mut state, KeyCode::BTN_MIDDLE, 1);
         assert!(state.active);
 
-        handle_mode_button(&mapping, &mut state, KeyCode::BTN_RIGHT, 0);
+        handle_mode_button(&mapping, &mut state, KeyCode::BTN_MIDDLE, 0);
         assert!(!state.active);
     }
 

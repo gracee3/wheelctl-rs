@@ -113,7 +113,7 @@ fine_step = "1.5%"
 
 [devices.mappings.mode_button]
 enabled = true
-button = "BTN_RIGHT"
+button = "BTN_MIDDLE"
 behavior = "toggle"
 
 [devices.disabled]
@@ -131,7 +131,7 @@ If you have multiple identical devices, edit the key to keep it unique and
 human-readable.
 
 `mode_button` is consumed by the grabbed device. With the default toggle
-behavior, right click switches between the normal `step` and `fine_step`.
+behavior, middle click switches between the normal `step` and `fine_step`.
 Set `behavior = "hold"` if you prefer fine mode only while the button is held.
 The active mode is shown when it changes and included in volume OSD updates.
 

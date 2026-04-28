@@ -70,6 +70,7 @@ pub struct ModeButtonMapping {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ButtonCode {
     BtnRight,
+    BtnMiddle,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -114,7 +115,7 @@ impl Default for ModeButtonMapping {
     fn default() -> Self {
         Self {
             enabled: true,
-            button: ButtonCode::BtnRight,
+            button: ButtonCode::BtnMiddle,
             behavior: ModeButtonBehavior::Toggle,
         }
     }
@@ -207,12 +208,12 @@ fn default_fine_step() -> String {
 }
 
 fn default_mode_button() -> ButtonCode {
-    ButtonCode::BtnRight
+    ButtonCode::BtnMiddle
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Config, DeviceConfig, DisabledEvents, Mappings, ModeButtonBehavior};
+    use super::{ButtonCode, Config, DeviceConfig, DisabledEvents, Mappings, ModeButtonBehavior};
 
     #[test]
     fn missing_config_defaults_to_no_devices() {
@@ -240,6 +241,7 @@ mod tests {
         assert_eq!(device.mappings.scroll_vertical.step, "5%");
         assert_eq!(device.mappings.scroll_vertical.fine_step, "1.5%");
         assert!(device.mappings.mode_button.enabled);
+        assert_eq!(device.mappings.mode_button.button, ButtonCode::BtnMiddle);
     }
 
     #[test]
@@ -280,6 +282,7 @@ horizontal_scroll = true
         assert_eq!(device.key, "dell-usb-optical-mouse");
         assert_eq!(device.vendor_id.as_deref(), Some("413c"));
         assert!(device.disabled.buttons);
+        assert_eq!(device.mappings.mode_button.button, ButtonCode::BtnRight);
         assert_eq!(
             device.mappings.mode_button.behavior,
             ModeButtonBehavior::Toggle
