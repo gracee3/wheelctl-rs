@@ -24,6 +24,8 @@ pub enum Command {
     Remove { key: String },
     /// Print the parsed configuration.
     Show,
+    /// Send a test OSD notification using the configured OSD backend.
+    OsdTest,
     /// Run in the foreground and process configured wheel devices.
     Run,
 }

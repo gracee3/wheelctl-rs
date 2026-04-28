@@ -78,6 +78,7 @@ wheelctl probe <event-device-or-by-id-path>
 wheelctl add <event-device-or-by-id-path>
 wheelctl remove <device-key>
 wheelctl show
+wheelctl osd-test
 wheelctl run
 ```
 
@@ -120,7 +121,7 @@ buttons = true
 horizontal_scroll = true
 
 [osd]
-enabled = false
+enabled = true
 backend = "libnotify"
 ```
 
@@ -135,7 +136,12 @@ Set `behavior = "hold"` if you prefer fine mode only while the button is held.
 `osd` is optional and separate from volume control. When enabled with the
 libnotify backend, `wheelctl` shells out to `notify-send` after volume or mode
 changes. Missing or failing notifications are logged and do not stop the input
-loop.
+loop. Run `wheelctl osd-test` to verify your desktop notification daemon is
+visible before relying on mode toggles.
+
+On i3, `notify-send` usually needs a notification daemon such as `dunst`
+running. If `wheelctl osd-test` times out or does not show anything, start a
+daemon before relying on OSD state.
 
 ## Justfile
 

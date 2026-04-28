@@ -284,6 +284,6 @@ horizontal_scroll = true
             device.mappings.mode_button.behavior,
             ModeButtonBehavior::Toggle
         );
-        assert!(!config.osd.enabled);
+        assert!(config.osd.enabled);
     }
 }

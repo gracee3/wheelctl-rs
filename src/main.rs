@@ -54,6 +54,12 @@ fn main() -> Result<()> {
             let rendered = toml::to_string_pretty(&config).context("failed to render config")?;
             print!("{rendered}");
         }
+        Command::OsdTest => {
+            let mut config = Config::load_or_default()?;
+            config.osd.enabled = true;
+            osd::show_checked(&config.osd, "wheelctl", "OSD notifications are available")?;
+            println!("Sent OSD test notification with {:?}.", config.osd.backend);
+        }
         Command::Run => {
             let config = Config::load_or_default()?;
             daemon::run(config)?;

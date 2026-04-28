@@ -3,7 +3,7 @@ use crate::config::{
     ButtonCode, Config, DeviceConfig, ModeButtonBehavior, ModeButtonMapping, ScrollVerticalMapping,
 };
 use crate::device::{is_vertical_wheel, open_evdev_device};
-use crate::osd::{self, OsdConfig};
+use crate::osd::{Notifier, OsdConfig};
 use anyhow::{Context, Result};
 use evdev::{EventSummary, KeyCode};
 use std::thread;
@@ -61,6 +61,7 @@ fn run_device(config: DeviceConfig, osd_config: OsdConfig) -> Result<()> {
     let mut device = open_evdev_device(&config.path)
         .with_context(|| format!("failed to open configured device {}", config.path))?;
     let mut mode_state = ModeState::default();
+    let mut notifier = Notifier::new(osd_config);
 
     if config.grab {
         device
@@ -87,7 +88,7 @@ fn run_device(config: DeviceConfig, osd_config: OsdConfig) -> Result<()> {
             .context("failed to read evdev events")?
         {
             if is_vertical_wheel(event.event_type(), event.code()) {
-                handle_vertical_scroll(&config, &osd_config, &mode_state, event.value())?;
+                handle_vertical_scroll(&config, &mut notifier, &mode_state, event.value())?;
                 continue;
             }
 
@@ -95,7 +96,7 @@ fn run_device(config: DeviceConfig, osd_config: OsdConfig) -> Result<()> {
                 handle_mode_button(&config.mappings.mode_button, &mut mode_state, key, value);
                 if mode_state.changed {
                     let label = if mode_state.active { "fine" } else { "normal" };
-                    osd::show(&osd_config, "Wheel mode", label);
+                    notifier.show("Wheel mode", label);
                     mode_state.changed = false;
                 }
             }
@@ -108,7 +109,7 @@ fn run_device(config: DeviceConfig, osd_config: OsdConfig) -> Result<()> {
 
 fn handle_vertical_scroll(
     config: &DeviceConfig,
-    osd_config: &OsdConfig,
+    notifier: &mut Notifier,
     mode_state: &ModeState,
     value: i32,
 ) -> Result<()> {
@@ -132,12 +133,10 @@ fn handle_vertical_scroll(
         change_volume(mapping.backend, step, increase)?;
     }
 
-    if osd_config.enabled {
-        match current_volume(mapping.backend) {
-            Ok(volume) => osd::show(osd_config, "Volume", &volume),
-            Err(error) => {
-                warn!(device = %config.name, error = %error, "failed to read volume for OSD")
-            }
+    match current_volume(mapping.backend) {
+        Ok(volume) => notifier.show("Volume", &volume),
+        Err(error) => {
+            warn!(device = %config.name, error = %error, "failed to read volume for OSD")
         }
     }
 
