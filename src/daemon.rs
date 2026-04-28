@@ -95,7 +95,7 @@ fn run_device(config: DeviceConfig, osd_config: OsdConfig) -> Result<()> {
             if let EventSummary::Key(_, key, value) = event.destructure() {
                 handle_mode_button(&config.mappings.mode_button, &mut mode_state, key, value);
                 if mode_state.changed {
-                    let label = mode_label(&config.mappings.scroll_vertical, &mode_state);
+                    let label = mode_label(&mode_state);
                     info!(device = %config.name, mode = %label, "wheel mode changed");
                     notifier.show("Wheel mode", &label);
                     mode_state.changed = false;
@@ -137,7 +137,7 @@ fn handle_vertical_scroll(
     match current_volume(mapping.backend) {
         Ok(volume) => {
             let volume = normalize_volume_display(&volume);
-            let mode = mode_label(mapping, mode_state);
+            let mode = mode_label(mode_state);
             notifier.show("Volume", &format!("{volume} · {mode}"));
         }
         Err(error) => {
@@ -182,11 +182,11 @@ fn active_step<'a>(mapping: &'a ScrollVerticalMapping, state: &ModeState) -> &'a
     }
 }
 
-fn mode_label(mapping: &ScrollVerticalMapping, state: &ModeState) -> String {
+fn mode_label(state: &ModeState) -> String {
     if state.active {
-        format!("fine {}", mapping.fine_step)
+        "fine".to_string()
     } else {
-        format!("normal {}", mapping.step)
+        "normal".to_string()
     }
 }
 
@@ -271,7 +271,7 @@ mod tests {
         assert_eq!(active_step(&mapping, &state), "5%");
 
         state.active = true;
-        assert_eq!(active_step(&mapping, &state), "1.5%");
+        assert_eq!(active_step(&mapping, &state), "1%");
     }
 
     #[test]
@@ -286,11 +286,10 @@ mod tests {
 
     #[test]
     fn mode_label_includes_active_step() {
-        let mapping = ScrollVerticalMapping::enabled_pipewire_volume();
         let mut state = ModeState::default();
-        assert_eq!(mode_label(&mapping, &state), "normal 5%");
+        assert_eq!(mode_label(&state), "normal");
 
         state.active = true;
-        assert_eq!(mode_label(&mapping, &state), "fine 1.5%");
+        assert_eq!(mode_label(&state), "fine");
     }
 }

@@ -204,7 +204,7 @@ fn default_step() -> String {
 }
 
 fn default_fine_step() -> String {
-    "1.5%".to_string()
+    "1%".to_string()
 }
 
 fn default_mode_button() -> ButtonCode {
@@ -239,7 +239,7 @@ mod tests {
         assert!(device.enabled);
         assert!(device.grab);
         assert_eq!(device.mappings.scroll_vertical.step, "5%");
-        assert_eq!(device.mappings.scroll_vertical.fine_step, "1.5%");
+        assert_eq!(device.mappings.scroll_vertical.fine_step, "1%");
         assert!(device.mappings.mode_button.enabled);
         assert_eq!(device.mappings.mode_button.button, ButtonCode::BtnMiddle);
     }
@@ -263,7 +263,7 @@ enabled = true
 backend = "pipewire"
 target = "volume"
 step = "5%"
-fine_step = "1.5%"
+fine_step = "1%"
 
 [devices.mappings.mode_button]
 enabled = true
