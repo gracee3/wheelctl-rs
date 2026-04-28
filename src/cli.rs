@@ -23,6 +23,9 @@ pub enum Command {
         /// Also print REL_X and REL_Y pointer movement events.
         #[arg(long)]
         movement: bool,
+        /// Do not exclusively grab the device while reading events.
+        #[arg(long)]
+        no_grab: bool,
         path: PathBuf,
     },
     /// Probe a device and append a default config stanza.

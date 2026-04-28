@@ -154,12 +154,19 @@ pub fn print_probe(info: &DeviceInfo) {
     println!("keys/buttons: {}", display_list(&info.keys));
 }
 
-pub fn print_events(path: impl AsRef<Path>, include_movement: bool) -> Result<()> {
+pub fn print_events(path: impl AsRef<Path>, include_movement: bool, grab: bool) -> Result<()> {
     let path = path.as_ref();
     let mut device = open_evdev_device(path)?;
+    if grab {
+        device
+            .grab()
+            .with_context(|| format!("failed to grab {}", path.display()))?;
+    }
+
     println!(
-        "Reading events from {}. Press Ctrl-C to stop.",
-        path.display()
+        "Reading events from {}{} Press Ctrl-C to stop.",
+        path.display(),
+        if grab { " with exclusive grab." } else { "." }
     );
 
     loop {

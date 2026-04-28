@@ -151,9 +151,11 @@ timing and visual style are controlled by the notification daemon, for example
 your `dunst` configuration.
 
 `wheelctl events <path>` is a small diagnostic helper for confirming which
-button and wheel event codes a device emits. Pointer movement (`REL_X` and
-`REL_Y`) is hidden by default; use `wheelctl events --movement <path>` to show
-it.
+button and wheel event codes a device emits. It grabs the device by default so
+diagnostic clicks and scrolls do not leak into your terminal or window manager.
+Pointer movement (`REL_X` and `REL_Y`) is hidden by default; use
+`wheelctl events --movement <path>` to show it, or `--no-grab` for passive
+observation.
 
 ## Justfile
 
