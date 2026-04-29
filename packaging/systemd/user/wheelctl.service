@@ -9,6 +9,10 @@ ExecStart=%h/.cargo/bin/wheelctl run
 Restart=on-failure
 RestartSec=2
 Environment=RUST_LOG=wheelctl=info
+Nice=10
+IOSchedulingClass=idle
+CPUWeight=10
+IOWeight=10
 
 [Install]
 WantedBy=default.target

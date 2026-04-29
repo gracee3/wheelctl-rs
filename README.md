@@ -146,5 +146,11 @@ systemctl --user daemon-reload
 - Requires PipeWire/WirePlumber `wpctl`.
 - When `grab = true`, the configured mouse stops acting like a normal desktop
   mouse while `wheelctl run` is active.
+- The systemd user service runs at low CPU and I/O priority. Runtime power use
+  is otherwise tiny: wheelctl blocks waiting for evdev events and shells out to
+  `wpctl` only on wheel changes.
+- Optical mouse sensor LEDs usually are not exposed through evdev or the kernel
+  LED interface. wheelctl cannot turn off the Dell MS116 optical LED unless the
+  device exposes a separate driver-specific control.
 - PulseAudio, ALSA control, hotplug handling, and native PipeWire APIs are out
   of scope for v1.
